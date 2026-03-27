@@ -1,10 +1,23 @@
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/supabaseClient";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Trophy, Play, CheckCircle, RefreshCw, Plus } from "lucide-react";
+import { Trophy, Play, CheckCircle, RefreshCw, Plus, Calendar, Users as UsersIcon, DollarSign, Eye, Send } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 const POOL_PER_SUBSCRIBER_MONTHLY = 29;
 
@@ -68,216 +81,309 @@ export default function AdminDraws() {
       setDraws(drawsData);
     } catch (error) {
       console.error("AdminDraws fetchDraws failed:", error);
-      toast({ title: "Failed to load draws", description: error?.message || "Please try again.", variant: "destructive" });
+      toast({ title: "Failed to load draws", variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    let mounted = true;
-    const load = async () => {
-      if (!mounted) return;
-      await fetchDraws();
-    };
-    load();
-    return () => { mounted = false; };
-  }, []);
+  useEffect(() => { fetchDraws(); }, []);
 
   const handleCreate = async () => {
     if (!newDraw.month || !newDraw.draw_date) {
-      toast({ title: "Fill in all fields", variant: "destructive" });
+      toast({ title: "Please fill in all fields", variant: "destructive" });
       return;
     }
     setCreating(true);
-    await base44.entities.Draw.create({ ...newDraw, status: "pending" });
-    toast({ title: "Draw created." });
-    setShowCreate(false);
-    setCreating(false);
-    fetchDraws();
+    try {
+      await base44.entities.Draw.create({ ...newDraw, status: "pending" });
+      toast({ title: "Monthly draw created successfully." });
+      setShowCreate(false);
+      fetchDraws();
+    } catch (error) {
+      toast({ title: "Failed to create draw", variant: "destructive" });
+    } finally {
+      setCreating(false);
+    }
   };
 
   const handleSimulate = async (draw) => {
     setSimRunning(draw.id);
-    // Get active subscribers with their scores
-    const subs = await base44.entities.Subscription.filter({ status: "active" });
-    const subscriberData = await Promise.all(subs.map(async sub => {
-      const scores = await base44.entities.Score.filter({ user_email: sub.user_email }, "-play_date", 5);
-      return { user_email: sub.user_email, user_name: sub.user_email.split("@")[0], scores };
-    }));
+    try {
+      const subs = await base44.entities.Subscription.filter({ status: "active" });
+      const subscriberData = await Promise.all(subs.map(async sub => {
+        const scores = await base44.entities.Score.filter({ user_email: sub.user_email }, "-play_date", 5);
+        return { user_email: sub.user_email, user_name: sub.user_email.split("@")[0], scores };
+      }));
 
-    const { winning, results, totalPool, hasJackpot } = runDraw(subscriberData, draw.mode, draw.jackpot_rollover || 0);
+      const { winning, results, totalPool, hasJackpot } = runDraw(subscriberData, draw.mode, draw.jackpot_rollover || 0);
 
-    // Save simulation results
-    await base44.entities.Draw.update(draw.id, {
-      status: "simulated",
-      winning_numbers: winning,
-      total_pool: totalPool,
-      total_subscribers: subs.length,
-    });
+      await base44.entities.Draw.update(draw.id, {
+        status: "simulated",
+        winning_numbers: winning,
+        total_pool: totalPool,
+        total_subscribers: subs.length,
+      });
 
-    // Delete old simulation results for this draw
-    const oldResults = await base44.entities.DrawResult.filter({ draw_id: draw.id });
-    await Promise.all(oldResults.map(r => base44.entities.DrawResult.delete(r.id)));
+      const oldResults = await base44.entities.DrawResult.filter({ draw_id: draw.id });
+      await Promise.all(oldResults.map(r => base44.entities.DrawResult.delete(r.id)));
 
-    // Create new results
-    await Promise.all(results.map(r =>
-      base44.entities.DrawResult.create({ ...r, draw_id: draw.id, month: draw.month })
-    ));
+      await Promise.all(results.map(r =>
+        base44.entities.DrawResult.create({ ...r, draw_id: draw.id, month: draw.month })
+      ));
 
-    toast({ title: `Simulation complete! ${results.length} winners found.`, description: hasJackpot ? "5-match winners found!" : "No jackpot winner — will rollover." });
-    setSimRunning(null);
-    fetchDraws();
+      toast({ 
+        title: `Simulation complete: ${results.length} winners`, 
+        description: hasJackpot ? "JACKPOT: 5-match winners found!" : "No jackpot winner this month." 
+      });
+      fetchDraws();
+    } catch (error) {
+      toast({ title: "Simulation failed", variant: "destructive" });
+    } finally {
+      setSimRunning(null);
+    }
   };
 
   const handlePublish = async (draw) => {
     setPublishing(draw.id);
-    // Get simulation results and create Winner records
-    const results = await base44.entities.DrawResult.filter({ draw_id: draw.id });
+    try {
+      const results = await base44.entities.DrawResult.filter({ draw_id: draw.id });
 
-    for (const result of results) {
-      const existing = await base44.entities.Winner.filter({ draw_id: draw.id, user_email: result.user_email });
-      if (!existing.length) {
-        await base44.entities.Winner.create({
-          draw_id: draw.id,
-          draw_result_id: result.id,
-          user_email: result.user_email,
-          user_name: result.user_name,
-          match_type: result.match_type,
-          prize_amount: result.prize_amount,
-          month: draw.month,
-          verification_status: "pending",
-          payment_status: "pending",
-        });
+      for (const result of results) {
+        const existing = await base44.entities.Winner.filter({ draw_id: draw.id, user_email: result.user_email });
+        if (!existing.length) {
+          await base44.entities.Winner.create({
+            draw_id: draw.id,
+            user_email: result.user_email,
+            user_name: result.user_name,
+            match_type: result.match_type,
+            prize_amount: result.prize_amount,
+            month: draw.month,
+            status: "pending",
+          });
+        }
       }
-    }
 
-    // Handle jackpot rollover
-    const fiveMatch = results.filter(r => r.match_type === "5-match");
-    if (!fiveMatch.length) {
-      // Add rollover to next draw (stored in the draw itself for now)
-      await base44.entities.Draw.update(draw.id, {
-        status: "published",
-        jackpot_rollover: (draw.jackpot_rollover || 0) + Math.floor(draw.total_pool * 0.40),
-      });
-    } else {
-      await base44.entities.Draw.update(draw.id, { status: "published" });
-    }
+      const fiveMatch = results.filter(r => r.match_type === "5-match");
+      if (!fiveMatch.length) {
+        await base44.entities.Draw.update(draw.id, {
+          status: "published",
+          jackpot_rollover: (draw.jackpot_rollover || 0) + Math.floor(draw.total_pool * 0.40),
+        });
+      } else {
+        await base44.entities.Draw.update(draw.id, { status: "published" });
+      }
 
-    // Notify winners via email
-    for (const winner of results) {
-      await base44.integrations.Core.SendEmail({
-        to: winner.user_email,
-        subject: "🏆 Congratulations — You Won in the GiveGolf Draw!",
-        body: `Hi ${winner.user_name},\n\nCongratulations! You matched ${winner.match_type} in the ${draw.month} GiveGolf draw and won $${winner.prize_amount?.toLocaleString()}!\n\nLog in to your dashboard to upload your proof and claim your prize.\n\nThank you for playing and giving back!\n\nThe GiveGolf Team`,
-      }).catch(() => {});
+      toast({ title: "Draw published and winners notified!" });
+      fetchDraws();
+    } catch (error) {
+      toast({ title: "Failed to publish draw", variant: "destructive" });
+    } finally {
+      setPublishing(null);
     }
-
-    toast({ title: "Draw published and winners notified!" });
-    setPublishing(null);
-    fetchDraws();
   };
 
-  const statusBadge = { pending: "bg-gray-100 text-gray-600", simulated: "bg-yellow-100 text-yellow-700", published: "bg-green-100 text-green-700" };
-
-  if (loading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" /></div>;
+  if (loading) return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-10 w-32 rounded-full" />
+      </div>
+      <div className="grid gap-6">
+        {[1, 2, 3].map(i => <Skeleton key={i} className="h-48 w-full rounded-3xl" />)}
+      </div>
+    </div>
+  );
 
   return (
-    <div>
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="font-serif text-3xl font-bold mb-1">Draw Management</h1>
-          <p className="text-muted-foreground">Configure, simulate and publish monthly draws.</p>
+          <h1 className="font-serif text-3xl font-bold mb-1 text-[#0a1e16]">Draw Management</h1>
+          <p className="text-muted-foreground">Configure, simulate, and verify monthly prize draws.</p>
         </div>
-        <Button onClick={() => setShowCreate(!showCreate)} className="gap-2 rounded-full">
-          <Plus className="w-4 h-4" /> New Draw
-        </Button>
+        
+        <Dialog open={showCreate} onOpenChange={setShowCreate}>
+          <DialogTrigger asChild>
+            <Button className="gap-2 rounded-full px-6 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
+              <Plus className="w-4 h-4" /> New Monthly Draw
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px] rounded-3xl">
+            <DialogHeader>
+              <DialogTitle className="font-serif text-2xl">Create New Draw</DialogTitle>
+              <DialogDescription>Set up the parameters for a new monthly prize draw.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-6 py-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-[#0a1e16] uppercase tracking-wider text-[10px]">Reference Month</label>
+                <Input type="month" value={newDraw.month} onChange={e => setNewDraw(p => ({ ...p, month: e.target.value }))} className="rounded-xl border-muted focus-visible:ring-primary/20" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-[#0a1e16] uppercase tracking-wider text-[10px]">Scheduled Draw Date</label>
+                <Input type="date" value={newDraw.draw_date} onChange={e => setNewDraw(p => ({ ...p, draw_date: e.target.value }))} className="rounded-xl border-muted focus-visible:ring-primary/20" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-[#0a1e16] uppercase tracking-wider text-[10px]">Generation Mode</label>
+                <select 
+                  value={newDraw.mode} 
+                  onChange={e => setNewDraw(p => ({ ...p, mode: e.target.value }))} 
+                  className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="random">Random (Pure Lottery)</option>
+                  <option value="algorithmic">Algorithmic (Score-weighted)</option>
+                </select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCreate(false)} className="rounded-xl">Cancel</Button>
+              <Button onClick={handleCreate} disabled={creating} className="rounded-xl px-8">
+                {creating ? "Creating..." : "Confirm & Create"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      {showCreate && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-card border border-border/50 rounded-2xl p-6 mb-6"
-        >
-          <h2 className="font-semibold mb-4">Create New Draw</h2>
-          <div className="grid sm:grid-cols-3 gap-4">
-            <div>
-              <label className="text-sm font-medium block mb-1">Month</label>
-              <Input type="month" value={newDraw.month} onChange={e => setNewDraw(p => ({ ...p, month: e.target.value }))} />
-            </div>
-            <div>
-              <label className="text-sm font-medium block mb-1">Draw Date</label>
-              <Input type="date" value={newDraw.draw_date} onChange={e => setNewDraw(p => ({ ...p, draw_date: e.target.value }))} />
-            </div>
-            <div>
-              <label className="text-sm font-medium block mb-1">Mode</label>
-              <select value={newDraw.mode} onChange={e => setNewDraw(p => ({ ...p, mode: e.target.value }))} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm">
-                <option value="random">Random (Lottery)</option>
-                <option value="algorithmic">Algorithmic (Score-weighted)</option>
-              </select>
-            </div>
-          </div>
-          <div className="flex gap-3 mt-4">
-            <Button onClick={handleCreate} disabled={creating}>{creating ? "Creating..." : "Create Draw"}</Button>
-            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-          </div>
-        </motion.div>
-      )}
+      <div className="grid gap-6">
+        <AnimatePresence mode="popLayout">
+          {draws.map((draw, i) => (
+            <motion.div
+              key={draw.id}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: i * 0.1 }}
+            >
+              <Card className="border-none shadow-sm hover:shadow-md transition-all duration-300 rounded-3xl overflow-hidden bg-white">
+                <CardContent className="p-0">
+                  <div className="flex flex-col lg:flex-row">
+                    {/* Left Info Panel */}
+                    <div className="p-6 lg:w-1/3 bg-muted/20 border-r border-muted/30">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                          <Trophy className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <div className="text-xl font-bold text-[#0a1e16]">{draw.month}</div>
+                          <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-widest border-primary/20 text-primary bg-primary/5">
+                            {draw.mode}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3 text-sm">
+                          <Calendar className="w-4 h-4 text-muted-foreground" />
+                          <span className="font-medium text-muted-foreground">Date:</span>
+                          <span className="text-[#0a1e16] font-semibold">{draw.draw_date}</span>
+                        </div>
+                        <div className="flex items-center gap-3 text-sm">
+                          <UsersIcon className="w-4 h-4 text-muted-foreground" />
+                          <span className="font-medium text-muted-foreground">Participants:</span>
+                          <span className="text-[#0a1e16] font-semibold">{draw.total_subscribers}</span>
+                        </div>
+                        <div className="flex items-center gap-3 text-sm">
+                          <DollarSign className="w-4 h-4 text-muted-foreground" />
+                          <span className="font-medium text-muted-foreground">Pool:</span>
+                          <span className="text-emerald-600 font-bold">${draw.total_pool?.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
 
-      <div className="space-y-4">
-        {draws.map((draw) => (
-          <div key={draw.id} className="bg-card border border-border/50 rounded-2xl p-5">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-3 mb-1">
-                  <span className="font-semibold">{draw.month}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusBadge[draw.status]}`}>{draw.status}</span>
-                  <span className="text-xs text-muted-foreground capitalize">{draw.mode}</span>
-                </div>
-                <div className="text-sm text-muted-foreground flex gap-4">
-                  <span>Date: {draw.draw_date}</span>
-                  {draw.total_pool > 0 && <span>Pool: ${draw.total_pool?.toLocaleString()}</span>}
-                  {draw.total_subscribers > 0 && <span>Subscribers: {draw.total_subscribers}</span>}
-                </div>
-                {draw.winning_numbers?.length > 0 && (
-                  <div className="flex gap-2 mt-2">
-                    {draw.winning_numbers.map((n, i) => (
-                      <div key={i} className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">{n}</div>
-                    ))}
+                    {/* Right Progress/Action Panel */}
+                    <div className="flex-1 p-6 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-6">
+                          {/* Stepper visualization */}
+                          <div className="flex items-center gap-2">
+                             <div className={cn("w-2.5 h-2.5 rounded-full", draw.status === "pending" ? "bg-amber-400 animate-pulse" : "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]")} />
+                             <div className={cn("h-0.5 w-8 rounded-full", draw.status === "pending" ? "bg-muted" : "bg-emerald-500")} />
+                             <div className={cn("w-2.5 h-2.5 rounded-full", draw.status === "pending" ? "bg-muted" : draw.status === "simulated" ? "bg-amber-400 animate-pulse" : "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]")} />
+                             <div className={cn("h-0.5 w-8 rounded-full", draw.status === "published" ? "bg-emerald-500" : "bg-muted")} />
+                             <div className={cn("w-2.5 h-2.5 rounded-full", draw.status === "published" ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-muted")} />
+                          </div>
+                          <Badge className={cn(
+                            "rounded-full px-4 py-1 font-bold uppercase tracking-widest text-[10px] shadow-none border-none",
+                            draw.status === "pending" ? "bg-amber-100 text-amber-700 hover:bg-amber-100" :
+                            draw.status === "simulated" ? "bg-blue-100 text-blue-700 hover:bg-blue-100" :
+                            "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
+                          )}>
+                            {draw.status}
+                          </Badge>
+                        </div>
+
+                        {draw.winning_numbers?.length > 0 && (
+                          <div className="mb-6">
+                            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Generated Winning Numbers</div>
+                            <div className="flex flex-wrap gap-3">
+                              {draw.winning_numbers.map((n, i) => (
+                                <motion.div 
+                                  key={i}
+                                  initial={{ scale: 0 }}
+                                  animate={{ scale: 1 }}
+                                  transition={{ delay: i * 0.1 }}
+                                  className="w-12 h-12 rounded-2xl bg-[#0a1e16] text-white flex items-center justify-center font-bold text-lg shadow-lg"
+                                >
+                                  {n}
+                                </motion.div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex gap-3 mt-4">
+                        {draw.status !== "published" && (
+                          <Button
+                            onClick={() => handleSimulate(draw)}
+                            disabled={simRunning === draw.id}
+                            variant={draw.status === "pending" ? "default" : "outline"}
+                            className="flex-1 rounded-2xl h-12 gap-2 font-bold transition-transform active:scale-95"
+                          >
+                            {simRunning === draw.id ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5" />}
+                            {draw.status === "pending" ? "Run Simulation" : "Re-simulate"}
+                          </Button>
+                        )}
+                        {draw.status === "simulated" && (
+                          <Button 
+                            onClick={() => handlePublish(draw)}
+                            disabled={publishing === draw.id}
+                            className="flex-1 rounded-2xl h-12 gap-2 font-bold bg-emerald-600 hover:bg-emerald-700 transition-transform active:scale-95 shadow-lg shadow-emerald-200"
+                          >
+                            <Send className="w-5 h-5" />
+                            {publishing === draw.id ? "Publishing..." : "Finalize & Publish"}
+                          </Button>
+                        )}
+                        {draw.status === "published" && (
+                          <Button variant="outline" className="flex-1 rounded-2xl h-12 gap-2 font-bold opacity-70 cursor-default">
+                            <CheckCircle className="w-5 h-5 text-emerald-500" />
+                            Draw Published
+                          </Button>
+                        )}
+                        {draw.status !== "pending" && (
+                           <Button variant="ghost" size="icon" className="h-12 w-12 rounded-2xl hover:bg-primary/5 text-primary">
+                             <Eye className="w-5 h-5" />
+                           </Button>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                )}
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                {draw.status !== "published" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-2 rounded-full"
-                    onClick={() => handleSimulate(draw)}
-                    disabled={simRunning === draw.id}
-                  >
-                    {simRunning === draw.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                    Simulate
-                  </Button>
-                )}
-                {draw.status === "simulated" && (
-                  <Button
-                    size="sm"
-                    className="gap-2 rounded-full"
-                    onClick={() => handlePublish(draw)}
-                    disabled={publishing === draw.id}
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    {publishing === draw.id ? "Publishing..." : "Publish"}
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+        
         {draws.length === 0 && (
-          <div className="text-center py-12 text-muted-foreground">No draws yet. Create your first draw above.</div>
+          <div className="py-24 text-center flex flex-col items-center gap-4 bg-muted/20 rounded-[40px] border-2 border-dashed border-muted">
+            <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center">
+               <Trophy className="w-10 h-10 text-muted-foreground opacity-30" />
+            </div>
+            <div>
+               <p className="text-xl font-serif font-bold text-[#0a1e16]">No draws found</p>
+               <p className="text-muted-foreground">Start by creating your first monthly draw.</p>
+            </div>
+            <Button onClick={() => setShowCreate(true)} variant="outline" className="rounded-full px-8">Create First Draw</Button>
+          </div>
         )}
       </div>
     </div>
