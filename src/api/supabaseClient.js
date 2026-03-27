@@ -57,8 +57,8 @@ class EntityService {
     return data || [];
   }
 
-  async list() {
-    return this.filter();
+  async list(order = null, limit = null) {
+    return this.filter({}, order, limit);
   }
 
   async create(payload) {

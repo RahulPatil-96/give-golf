@@ -245,57 +245,62 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
 
 -- =========================================================
--- =========================================================
--- 7. SEED DATA
+-- 7. SEED DATA (Real-World Organizations & Realistic Users)
 -- =========================================================
 BEGIN;
 
 -- 7.1 Admin user row
 INSERT INTO public.users (id, email, full_name, role, subscription_status)
-VALUES ('d1a2b3c4-e5f6-4a7b-8c9d-0e1f2a3b4c5d', 'admin@fairwayimpact.com', 'Admin User', 'admin', 'active')
+VALUES ('d1a2b3c4-e5f6-4a7b-8c9d-0e1f2a3b4c5d', 'admin@fairwayimpact.com', 'System Administrator', 'admin', 'active')
 ON CONFLICT (id) DO NOTHING;
 
--- 7.2 Extended Charity Partners
+-- 7.2 Real-World Charity Partners
 INSERT INTO public."Charity" (name, description, short_description, category, featured, total_raised, image_url, website, status)
 VALUES
-  ('Green Fairways Initiative', 'Dedicated to environmental conservation on golf courses worldwide.', 'Leading the way in sustainable golf.', 'Environment', true, 142500, 'https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?q=80&w=2070', 'https://greenfairways.org', 'active'),
-  ('Junior Golf Foundation', 'Providing equipment and scholarships to underprivileged youth.', 'Empowering the next generation.', 'Education', true, 89400, 'https://images.unsplash.com/photo-1593111774240-d529f12cf4bb?q=80&w=2076', 'https://juniorgolffoundation.org', 'active'),
-  ('The Par-Tee Care Network', 'Emergency financial assistance to former golf course employees.', 'Community care for the golf world.', 'Community', true, 67200, 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?q=80&w=2070', 'https://partecare.org', 'active'),
-  ('Animal Rescue Network', 'Providing shelter and care for abandoned pets across the country.', 'Protecting our furry friends.', 'Animals', true, 45000, 'https://images.unsplash.com/photo-1450778869180-41d0601e046e?q=80&w=2070', 'https://animalrescue.net', 'active'),
-  ('Tech for Youth', 'Equipping underprivileged schools with modern computer labs and coding workshops.', 'Coding the future.', 'Education', false, 82000, 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?q=80&w=2070', 'https://techforyouth.edu', 'active'),
-  ('Ocean Cleanup Project', 'Deploying advanced technology to remove plastic pollution from our oceans.', 'For a cleaner blue planet.', 'Environment', true, 125000, 'https://images.unsplash.com/photo-1484528334670-2a909be04620?q=80&w=2070', 'https://oceancleanup.com', 'active'),
-  ('Veterans Housing Fund', 'Eliminating homelessness among veterans by providing affordable housing and support.', 'Honoring those who served.', 'Veterans', false, 95000, 'https://images.unsplash.com/photo-1508847154043-be5407fcaa5a?q=80&w=2070', 'https://veteranshousing.org', 'active'),
-  ('Mental Health First', 'Expanding access to affordable counseling and support services.', 'Because mental health matters.', 'Health', true, 68000, 'https://images.unsplash.com/photo-1527137342181-19aab11a8ee1?q=80&w=2070', 'https://mentalhealthfirst.net', 'active')
+  ('TGR Foundation', 'Founded by Tiger Woods, the TGR Foundation is dedicated to empowering underprivileged students through STEM education and college access programs.', 'Empowering students through STEM.', 'Education', true, 2850000, 'https://images.unsplash.com/photo-1544928147-79a2dbc1f389?q=80&w=2070', 'https://tgrfoundation.org', 'active'),
+  ('PGA HOPE', 'Helping Our Patriots Everywhere (HOPE) is the flagship military program of PGA REACH, introducing golf to veterans with disabilities to enhance their well-being.', 'Golf for veterans with disabilities.', 'Veterans', true, 1420000, 'https://images.unsplash.com/photo-1508847154043-be5407fcaa5a?q=80&w=2070', 'https://pgareach.org/services/military', 'active'),
+  ('The First Tee', 'Shaping the lives of young people from all backgrounds by introducing them to the game of golf and its inherent values.', 'Building character through golf.', 'Youth', true, 3100000, 'https://images.unsplash.com/photo-1593111774240-d529f12cf4bb?q=80&w=2076', 'https://firsttee.org', 'active'),
+  ('Folds of Honor', 'Providing educational scholarships to the spouses and children of Americas fallen or disabled military service members.', 'Honoring the sacrifice.', 'Veterans', true, 5200000, 'https://images.unsplash.com/photo-1524338198850-8a2ff63aaceb?q=80&w=2070', 'https://foldsofhonor.org', 'active'),
+  ('Youth on Course', 'Providing young people with access to life-changing opportunities through $5 or less rounds of golf and college scholarships.', 'Affordable golf for the next generation.', 'Youth', false, 890000, 'https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?q=80&w=2070', 'https://youthoncourse.org', 'active'),
+  ('Els for Autism', 'Established by Ernie and Liezl Els, the foundation is dedicated to bettering the lives of individuals with autism through golf and specialized programs.', 'Golf for Autism spectrum support.', 'Health', false, 760000, 'https://images.unsplash.com/photo-1505751172876-fa1923c5c528?q=80&w=2070', 'https://elsforautism.org', 'active'),
+  ('Birdies for the Brave', 'A national military outreach initiative supported by the PGA TOUR to honor and show appreciation for the courageous men and women of our Armed Forces.', 'Supporting our military families.', 'Veterans', false, 2100000, 'https://images.unsplash.com/photo-1459253331217-074023714df1?q=80&w=2070', 'https://birdiesforthebrave.org', 'active'),
+  ('Payne Stewart Kids Golf Foundation', 'Introducing the game of golf to kids in underserved communities, emphasizing Stewart''s values of sportsmanship and faith.', 'Golf for underserved communities.', 'Youth', false, 420000, 'https://images.unsplash.com/photo-1531482615713-2afd69097998?q=80&w=2070', 'https://paynestewart.org', 'active')
 ON CONFLICT (name) DO NOTHING;
 
--- 7.3 Bulk Users, Subscriptions, and Scores
+-- 7.3 Realistic Users with Real Names
 DO $$
 DECLARE
-    i INTEGER;
     uid UUID;
     charity_id UUID;
+    first_names TEXT[] := ARRAY['James', 'Mary', 'Robert', 'Patricia', 'John', 'Jennifer', 'Michael', 'Linda', 'William', 'Elizabeth', 'David', 'Barbara', 'Richard', 'Susan', 'Joseph', 'Jessica', 'Thomas', 'Sarah', 'Christopher', 'Karen'];
+    last_names TEXT[] := ARRAY['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez', 'Hernandez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore', 'Jackson', 'Martin'];
+    f_name TEXT;
+    l_name TEXT;
+    full_name TEXT;
     user_email TEXT;
 BEGIN
-    SELECT id INTO charity_id FROM public."Charity" ORDER BY random() LIMIT 1;
-    
     FOR i IN 1..50 LOOP
         uid := gen_random_uuid();
-        user_email := 'member' || i || '@givegolf.com';
+        f_name := first_names[1 + (random() * (array_length(first_names, 1) - 1))::int];
+        l_name := last_names[1 + (random() * (array_length(last_names, 1) - 1))::int];
+        full_name := f_name || ' ' || l_name;
+        user_email := lower(f_name) || '.' || lower(l_name) || i || '@gmail.com';
         
+        SELECT id INTO charity_id FROM public."Charity" ORDER BY random() LIMIT 1;
+
         -- Create User Profile
-        INSERT INTO public.users (id, email, full_name, role, subscription_status, selected_charity_id, charity_contribution_pct)
+        INSERT INTO public.users (id, email, full_name, role, subscription_status, selected_charity_id)
         VALUES (
             uid,
             user_email,
-            'Give Golf Member ' || i,
+            full_name,
             'user',
-            CASE WHEN i % 4 = 1 THEN 'none' ELSE 'active' END,
-            charity_id,
-            (random() * 20 + 5)::numeric
+            CASE WHEN i % 5 = 0 THEN 'none' ELSE 'active' END,
+            charity_id
         ) ON CONFLICT (email) DO NOTHING;
 
         -- Create Subscriptions
-        IF i % 4 != 1 THEN
+        IF i % 5 != 0 THEN
             INSERT INTO public."Subscription" (user_email, user_id, plan, status, amount, start_date)
             VALUES (
                 user_email,
@@ -307,8 +312,8 @@ BEGIN
             );
         END IF;
 
-        -- Create Cumulative Scores
-        FOR j IN 1..3 LOOP
+        -- Create Scores
+        FOR j IN 1..2 LOOP
           INSERT INTO public."Score" (user_email, user_id, score_data, play_date)
           VALUES (
             user_email,
@@ -317,7 +322,7 @@ BEGIN
                 'balls', ARRAY[(1+random()*48)::int, (1+random()*48)::int, (1+random()*48)::int, (1+random()*48)::int, (1+random()*48)::int], 
                 'powerball', (1+random()*12)::int
             ),
-            CURRENT_DATE - (j * 7 + floor(random() * 14))::int
+            CURRENT_DATE - (j * 10 + floor(random() * 5))::int
           );
         END LOOP;
     END LOOP;
@@ -326,9 +331,9 @@ END $$;
 -- 7.4 Historical Draws
 INSERT INTO public."Draw" (month, draw_date, mode, status, total_pool, winning_numbers, total_subscribers)
 VALUES 
-  ('January 2026', '2026-01-31', 'algorithmic', 'published', 25400, '[12, 18, 24, 33, 41, 7]', 142),
-  ('February 2026', '2026-02-28', 'algorithmic', 'published', 28900, '[4, 11, 22, 29, 45, 12]', 158),
-  ('March 2026', '2026-03-31', 'algorithmic', 'pending', 34200, '[]', 178)
+  ('January 2026', '2026-01-31', 'algorithmic', 'published', 45000, '[14, 23, 31, 38, 44, 9]', 242),
+  ('February 2026', '2026-02-28', 'algorithmic', 'published', 52000, '[5, 12, 28, 35, 41, 6]', 288),
+  ('March 2026', '2026-03-31', 'algorithmic', 'pending', 61500, '[]', 315)
 ON CONFLICT (month) DO NOTHING;
 
 -- 7.5 Historical Winners
@@ -340,19 +345,19 @@ DECLARE
 BEGIN
     SELECT id INTO draw_id FROM public."Draw" WHERE month = 'January 2026';
     IF draw_id IS NOT NULL THEN
-        SELECT id, email INTO u_id, u_email FROM public.users WHERE email = 'member12@givegolf.com';
+        SELECT id, email INTO u_id, u_email FROM public.users ORDER BY random() LIMIT 1;
         INSERT INTO public."Winner" (user_email, user_id, draw_id, prize_amount, match_type, month, status)
-        VALUES (u_email, u_id, draw_id, 5000, '4 Balls + Powerball', 'January 2026', 'paid');
+        VALUES (u_email, u_id, draw_id, 10000, '4 Balls + Powerball', 'January 2026', 'paid');
     END IF;
 
     SELECT id INTO draw_id FROM public."Draw" WHERE month = 'February 2026';
     IF draw_id IS NOT NULL THEN
-        SELECT id, email INTO u_id, u_email FROM public.users WHERE email = 'member24@givegolf.com';
+        SELECT id, email INTO u_id, u_email FROM public.users ORDER BY random() LIMIT 1;
         INSERT INTO public."Winner" (user_email, user_id, draw_id, prize_amount, match_type, month, status)
-        VALUES (u_email, u_id, draw_id, 15000, '5 Balls', 'February 2026', 'verified');
+        VALUES (u_email, u_id, draw_id, 25000, 'Full Match', 'February 2026', 'verified');
     END IF;
 END $$;
 
 COMMIT;
 
-SELECT 'Give Golf schema and comprehensive dummy data applied successfully!' AS status;
+SELECT 'Real-world data and realistic users applied to schema!' AS status;

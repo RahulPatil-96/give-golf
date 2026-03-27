@@ -120,7 +120,7 @@ export default function AdminCharities() {
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent className="sm:max-w-2xl rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
           <div className="bg-primary/5 p-8 border-b border-primary/10">
-            <DialogHeader>
+            <DialogHeader className="">
               <DialogTitle className="font-serif text-2xl text-[#0a1e16]">{editing ? "Edit Charity Partner" : "Register New Charity"}</DialogTitle>
               <DialogDescription className="text-muted-foreground/80">Configure how this charity appears across the platform.</DialogDescription>
             </DialogHeader>
